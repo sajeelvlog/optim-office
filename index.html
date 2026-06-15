@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HQ Attendance Command Center & Analytics</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <div class="container">
 
-    <!-- SIGN IN PORTAL -->
     <div id="loginScreen" class="login-screen">
         <h2 class="portal-title">Office Authentication</h2>
         <p class="portal-subtitle">Enter phone number registered with HQ</p>
@@ -27,7 +27,6 @@
         </div>
     </div>
 
-    <!-- MAIN DASHBOARD COMPONENT APPLICATION -->
     <div id="appScreen" class="hidden">
         <header>
             <div>
@@ -46,7 +45,6 @@
             <div class="legend-item"><span class="dot red"></span> Absent</div>
         </div>
 
-        <!-- User Self Reporting Actions -->
         <div class="user-panel">
             <h3>Set Attendance Status for <span id="targetStatusDate"></span></h3>
             <div class="status-button-grid">
@@ -57,7 +55,6 @@
             </div>
         </div>
 
-        <!-- LIVE WORKSPACE LAYOUT OVERVIEW (Directors Only) -->
         <div id="directorViewBlock" class="office-map hidden">
             <h3>📊 Live Operational Floor Plan (Directors Only)</h3>
             <div class="office-grid" id="officeFloorGrid"></div>
@@ -66,7 +63,6 @@
             <ul class="log-timeline" id="liveTimelineBox"></ul>
         </div>
 
-        <!-- ANALYTICS ENGINE (Directors Only) -->
         <div id="directorAnalyticsBlock" class="analytics-panel hidden">
             <h3>🔍 Operational Attendance History & Audit Ledger</h3>
             
@@ -125,7 +121,7 @@
         </div>
 
         <div id="restrictionMessage" class="restricted-message hidden">
-            ℹ️ Individual dashboard successfully configured. Live attendance boards are restricted to Executive Director oversight.
+            ℹ Irish individual dashboard configured. Live attendance synchronization logs are broadcasting to executive oversight streams.
         </div>
 
     </div>

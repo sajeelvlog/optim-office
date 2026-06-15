@@ -1,3 +1,11 @@
+// Connects to a free real-time cloud data pipeline
+// To make this fully operational on your end, create a free database project at supabase.com 
+// and update these two parameter string configuration lines below:
+const SUPABASE_URL = "https://your-project-id.supabase.co";
+const SUPABASE_ANON_KEY = "your-anon-public-key-here";
+
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
 const companyRegistry = {
     "9496659950": { id: "sajeel", name: "Sajeel", role: "director" },
     "9846481685": { id: "sbr", name: "SBR", role: "director" },
@@ -12,6 +20,7 @@ const companyRegistry = {
 let sessionUser = null;
 let selectedDateString = "";
 let systemGeneratedOTP = null;
+let globalCloudLogs = { statusLogs: {}, auditTimeline: [] };
 
 const appTimeline = getTimelineDates();
 
@@ -21,26 +30,56 @@ function getTimelineDates() {
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
 
     return {
-        yesterday: yesterday.toISOString().split('T')[0],
-        today: today.toISOString().split('T')[0],
-        tomorrow: tomorrow.toISOString().split('T')[0]
+        yesterday: yesterday.toISOString().split('T'),
+        today: today.toISOString().split('T'),
+        tomorrow: tomorrow.toISOString().split('T')
     };
 }
 
-function fetchMasterDataStore() {
-    let storageLogs = localStorage.getItem('hq_attendance_matrix_v3');
-    if (!storageLogs) {
-        storageLogs = { statusLogs: {}, auditTimeline: [] };
-        [appTimeline.yesterday, appTimeline.today, appTimeline.tomorrow].forEach(date => {
-            storageLogs.statusLogs[date] = {};
-            Object.values(companyRegistry).forEach(emp => {
-                storageLogs.statusLogs[date][emp.id] = { status: "absent", timestamp: "No Log" }; 
+// Automatically synchronizes live matrix arrays across networks
+async function fetchMasterDataStore() {
+    if (!supabase) {
+        // Fallback gracefully if cloud settings aren't live yet
+        let local = localStorage.getItem('hq_attendance_matrix_v3');
+        globalCloudLogs = local ? JSON.parse(local) : { statusLogs: {}, auditTimeline: [] };
+    } else {
+        const { data, error } = await supabase.from('attendance_store').select('*').single();
+        if (data) {
+            globalCloudLogs = data.payload;
+        } else {
+            // Seed base configuration schema
+            globalCloudLogs = { statusLogs: {}, auditTimeline: [] };
+            [appTimeline.yesterday, appTimeline.today, appTimeline.tomorrow].forEach(date => {
+                globalCloudLogs.statusLogs[date] = {};
+                Object.values(companyRegistry).forEach(emp => {
+                    globalCloudLogs.statusLogs[date][emp.id] = { status: "absent", timestamp: "No Log" }; 
+                });
             });
-        });
-        localStorage.setItem('hq_attendance_matrix_v3', JSON.stringify(storageLogs));
-        return storageLogs;
+            await supabase.from('attendance_store').insert([{ id: 1, payload: globalCloudLogs }]);
+        }
     }
-    return JSON.parse(storageLogs);
+    // Deep initialize target structural arrays if missing
+    if(!globalCloudLogs.statusLogs[selectedDateString]) {
+        globalCloudLogs.statusLogs[selectedDateString] = {};
+    }
+    Object.values(companyRegistry).forEach(emp => {
+        if(!globalCloudLogs.statusLogs[selectedDateString][emp.id]) {
+            globalCloudLogs.statusLogs[selectedDateString][emp.id] = { status: "absent", timestamp: "No Log" };
+        }
+    });
+}
+
+function listenToLiveCloudChanges() {
+    if (!supabase) return;
+    
+    // Subscribes to database hooks to listen for real-time adjustments anywhere in the field
+    supabase.channel('custom-all-channel')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'attendance_store' }, (payload) => {
+        globalCloudLogs = payload.new.payload;
+        renderDirectorMatrix();
+        generateReport();
+    })
+    .subscribe();
 }
 
 function generateAndRequestOTP() {
@@ -62,7 +101,7 @@ function resetLoginFields() {
     systemGeneratedOTP = null;
 }
 
-function verifyAndLogin() {
+async function verifyAndLogin() {
     const enteredOTP = document.getElementById('otpInput').value.trim();
     const phone = document.getElementById('phoneInput').value.trim();
 
@@ -85,23 +124,23 @@ function verifyAndLogin() {
         }
 
         initializeDateEngine();
-        generateReport();
+        listenToLiveCloudChanges();
     } else {
         alert("Invalid OTP Token verification code. Please try again.");
     }
 }
 
-function initializeDateEngine() {
+async function initializeDateEngine() {
     const ribbon = document.getElementById('dateSelectorBar');
     ribbon.innerHTML = `
         <button class="date-btn" id="d-${appTimeline.yesterday}" onclick="jumpToDate('${appTimeline.yesterday}')">Prev Day (${appTimeline.yesterday})</button>
         <button class="date-btn" id="d-${appTimeline.today}" onclick="jumpToDate('${appTimeline.today}')">Today (${appTimeline.today})</button>
         <button class="date-btn" id="d-${appTimeline.tomorrow}" onclick="jumpToDate('${appTimeline.tomorrow}')">Next Day (${appTimeline.tomorrow})</button>
     `;
-    jumpToDate(appTimeline.today);
+    await jumpToDate(appTimeline.today);
 }
 
-function jumpToDate(dateTarget) {
+async function jumpToDate(dateTarget) {
     selectedDateString = dateTarget;
     document.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
     if(document.getElementById(`d-${dateTarget}`)) {
@@ -109,23 +148,21 @@ function jumpToDate(dateTarget) {
     }
     document.getElementById('targetStatusDate').innerText = dateTarget;
     
+    await fetchMasterDataStore();
     renderDirectorMatrix();
+    generateReport();
 }
 
-function submitStatus(statusLabel) {
-    const dataStore = fetchMasterDataStore();
+async function submitStatus(statusLabel) {
+    await fetchMasterDataStore();
     const currentTimeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second:'2-digit' });
 
-    if(!dataStore.statusLogs[selectedDateString]) {
-        dataStore.statusLogs[selectedDateString] = {};
-    }
-
-    dataStore.statusLogs[selectedDateString][sessionUser.id] = {
+    globalCloudLogs.statusLogs[selectedDateString][sessionUser.id] = {
         status: statusLabel,
         timestamp: currentTimeString
     };
 
-    dataStore.auditTimeline.unshift({
+    globalCloudLogs.auditTimeline.unshift({
         date: selectedDateString,
         user: sessionUser.name,
         userId: sessionUser.id,
@@ -134,9 +171,13 @@ function submitStatus(statusLabel) {
         time: currentTimeString
     });
 
-    localStorage.setItem('hq_attendance_matrix_v3', JSON.stringify(dataStore));
+    if (supabase) {
+        await supabase.from('attendance_store').update({ payload: globalCloudLogs }).eq('id', 1);
+    } else {
+        localStorage.setItem('hq_attendance_matrix_v3', JSON.stringify(globalCloudLogs));
+    }
+
     alert(`Status updated to [${statusLabel.toUpperCase()}] at ${currentTimeString}`);
-    
     renderDirectorMatrix();
     generateReport();
 }
@@ -144,8 +185,7 @@ function submitStatus(statusLabel) {
 function renderDirectorMatrix() {
     if (!sessionUser || sessionUser.role !== 'director') return;
 
-    const dataStore = fetchMasterDataStore();
-    const targetedDayDataset = dataStore.statusLogs[selectedDateString] || {};
+    const targetedDayDataset = globalCloudLogs.statusLogs[selectedDateString] || {};
     const floorGrid = document.getElementById('officeFloorGrid');
     floorGrid.innerHTML = "";
 
@@ -166,7 +206,7 @@ function renderDirectorMatrix() {
 
     const timelineBox = document.getElementById('liveTimelineBox');
     timelineBox.innerHTML = "";
-    const filteredTimeline = dataStore.auditTimeline.filter(item => item.date === selectedDateString);
+    const filteredTimeline = globalCloudLogs.auditTimeline.filter(item => item.date === selectedDateString);
     
     if(filteredTimeline.length === 0) {
         timelineBox.innerHTML = "<li style='color:#6b7280; justify-content:center;'>No structural transactions completed today.</li>";
@@ -196,14 +236,13 @@ function clearMonthDropdown() {
 function generateReport() {
     if (!sessionUser || sessionUser.role !== 'director') return;
 
-    const dataStore = fetchMasterDataStore();
     const targetPerson = document.getElementById('filterPerson').value;
     const startRange = document.getElementById('filterStartDate').value;
     const endRange = document.getElementById('filterEndDate').value;
     const tableBody = document.getElementById('reportTableContent');
     
     tableBody.innerHTML = "";
-    const sortedDates = Object.keys(dataStore.statusLogs).sort((a,b) => new Date(b) - new Date(a));
+    const sortedDates = Object.keys(globalCloudLogs.statusLogs).sort((a,b) => new Date(b) - new Date(a));
     let rowsGenerated = 0;
 
     sortedDates.forEach(dateLoop => {
@@ -214,7 +253,7 @@ function generateReport() {
             if (targetPerson !== "all" && empId !== targetPerson) return;
 
             const employee = companyRegistry[empId];
-            const dayLog = dataStore.statusLogs[dateLoop][empId] || { status: "absent", timestamp: "No Log" };
+            const dayLog = globalCloudLogs.statusLogs[dateLoop][empId] || { status: "absent", timestamp: "No Log" };
 
             const recordRow = `
                 <tr>
