@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HQ Attendance Command Center & Analytics</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- SIGN IN PORTAL -->
+    <div id="loginScreen" class="login-screen">
+        <h2 class="portal-title">Office Authentication</h2>
+        <p class="portal-subtitle">Enter phone number registered with HQ</p>
+        
+        <div id="phoneStep">
+            <input type="tel" id="phoneInput" placeholder="Enter 10-Digit Phone No." required>
+            <button class="btn-action" onclick="generateAndRequestOTP()">Request OTP</button>
+        </div>
+
+        <div id="otpStep" class="hidden">
+            <input type="number" id="otpInput" placeholder="Enter 4-Digit OTP Code" required>
+            <button class="btn-action btn-verify" onclick="verifyAndLogin()">Verify & Login</button>
+            <button class="btn-action btn-back" onclick="resetLoginFields()">← Back</button>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD COMPONENT APPLICATION -->
+    <div id="appScreen" class="hidden">
+        <header>
+            <div>
+                <h1 id="welcomeUser">Welcome Team Member</h1>
+                <p id="userRoleDisplay"></p>
+            </div>
+            <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </header>
+
+        <div class="date-bar" id="dateSelectorBar"></div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="dot green"></span> Present</div>
+            <div class="legend-item"><span class="dot white"></span> On Break</div>
+            <div class="legend-item"><span class="dot yellow"></span> Left Workspace</div>
+            <div class="legend-item"><span class="dot red"></span> Absent</div>
+        </div>
+
+        <!-- User Self Reporting Actions -->
+        <div class="user-panel">
+            <h3>Set Attendance Status for <span id="targetStatusDate"></span></h3>
+            <div class="status-button-grid">
+                <button class="status-btn-present" onclick="submitStatus('present')">Present</button>
+                <button class="status-btn-break" onclick="submitStatus('break')">On Break</button>
+                <button class="status-btn-left" onclick="submitStatus('left')">Left Office</button>
+                <button class="status-btn-absent" onclick="submitStatus('absent')">Absent</button>
+            </div>
+        </div>
+
+        <!-- LIVE WORKSPACE LAYOUT OVERVIEW (Directors Only) -->
+        <div id="directorViewBlock" class="office-map hidden">
+            <h3>📊 Live Operational Floor Plan (Directors Only)</h3>
+            <div class="office-grid" id="officeFloorGrid"></div>
+
+            <h4 class="timeline-title">Today's Live Stamp Timeline</h4>
+            <ul class="log-timeline" id="liveTimelineBox"></ul>
+        </div>
+
+        <!-- ANALYTICS ENGINE (Directors Only) -->
+        <div id="directorAnalyticsBlock" class="analytics-panel hidden">
+            <h3>🔍 Operational Attendance History & Audit Ledger</h3>
+            
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label>Filter By Person</label>
+                    <select id="filterPerson" onchange="generateReport()">
+                        <option value="all">-- All Staff Members --</option>
+                        <option value="sajeel">Sajeel (Director)</option>
+                        <option value="sbr">SBR (Director)</option>
+                        <option value="nisar">Nisar (Director)</option>
+                        <option value="jaseera">Jaseera (Admin)</option>
+                        <option value="sujisha">Sujisha (Telecaller)</option>
+                        <option value="muhsina">Muhsina Jasmin (Telecaller)</option>
+                        <option value="finan">Finan (Digital Marketer)</option>
+                        <option value="ablaj">Ablaj (Mentor)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Filter By Month</label>
+                    <select id="filterMonth" onchange="handleMonthFilterChange()">
+                        <option value="all">-- Custom / All Dates --</option>
+                        <option value="2026-01">January 2026</option>
+                        <option value="2026-02">February 2026</option>
+                        <option value="2026-03">March 2026</option>
+                        <option value="2026-04">April 2026</option>
+                        <option value="2026-05">May 2026</option>
+                        <option value="2026-06">June 2026</option>
+                        <option value="2026-07">July 2026</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Start Date</label>
+                    <input type="date" id="filterStartDate" onchange="clearMonthDropdown(); generateReport();">
+                </div>
+                <div class="filter-group">
+                    <label>End Date</label>
+                    <input type="date" id="filterEndDate" onchange="clearMonthDropdown(); generateReport();">
+                </div>
+            </div>
+
+            <div class="table-scroll">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Staff Name</th>
+                            <th>Designation</th>
+                            <th>Final Stated Status</th>
+                            <th>Last Status Check-In Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableContent"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="restrictionMessage" class="restricted-message hidden">
+            ℹ️ Individual dashboard successfully configured. Live attendance boards are restricted to Executive Director oversight.
+        </div>
+
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
